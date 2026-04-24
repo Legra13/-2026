@@ -221,23 +221,9 @@
         <table class="player-table" id="top-players"></table>
       </div>
       <div class="card">
-        <div class="card-title">Активность по дням</div>
-        <div class="chart-wrap" style="height:220px;">
-          <canvas id="dayChart" role="img" aria-label="Шаги по дням">Динамика шагов по дням.</canvas>
-        </div>
-      </div>
-    </div>
-    <div class="grid2">
-      <div class="card">
-        <div class="card-title">Среднее шагов на участника</div>
+        <div class="card-title">Среднее шагов на участника (за весь челлендж)</div>
         <div class="chart-wrap" style="height:220px;">
           <canvas id="avgChart" role="img" aria-label="Среднее по командам">Среднее шагов на участника по командам.</canvas>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-title">Участие команд — кол-во участников</div>
-        <div class="chart-wrap" style="height:220px;">
-          <canvas id="membersChart" role="img" aria-label="Участники по командам">Количество участников в каждой команде.</canvas>
         </div>
       </div>
     </div>
@@ -264,7 +250,7 @@
 <script>
 const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRdD9D_PSa5KiijCAGOzzMsx_VdWWfRsiVma_7arW-Hlv6vFtgi1pGdCZJ6u7i8f5uTxmcYhxs-VrMq/pub?output=csv';
 const COLORS = ['#2a5cff','#1a9e6e','#e8a020','#e05050','#8b5cf6','#ec4899','#0ea5e9','#f97316'];
-let dayChartInst = null, avgChartInst = null, membersChartInst = null, stackedChartInst = null;
+let avgChartInst = null, stackedChartInst = null;
 let autoRefreshTimer = null;
 
 function fmt(n) {
@@ -387,9 +373,8 @@ function renderDashboard(rows) {
 
   // Metrics
   document.getElementById('metrics').innerHTML = `
-    <div class="metric" style="border-left:3px solid #2a5cff;"><div class="metric-label">День челленджа</div><div class="metric-value" style="color:#2a5cff;">${challengeDay}</div><div class="metric-sub">начало: ${firstDate}</div></div>
-    <div class="metric"><div class="metric-label">Шагов за ${latestDate}</div><div class="metric-value">${fmt(todaySteps)}</div><div class="metric-sub">последний день с данными</div></div>
-    <div class="metric"><div class="metric-label">Активных ${latestDate}</div><div class="metric-value">${todayActive}</div><div class="metric-sub">из ${participants} участников</div></div>
+    <div class="metric" style="border-left:3px solid #2a5cff;"><div class="metric-label">День ходьбы</div><div class="metric-value" style="color:#2a5cff;">${challengeDay}</div></div>
+    <div class="metric"><div class="metric-label">Количество участников</div><div class="metric-value">${participants}</div></div>
     <div class="metric"><div class="metric-label">Всего шагов</div><div class="metric-value">${fmt(totalSteps)}</div><div class="metric-sub">за весь челлендж</div></div>
   `;
 
@@ -410,30 +395,6 @@ function renderDashboard(rows) {
       <td>${name}</td>
       <td>${fmt(steps)}</td>
     </tr>`).join('');
-
-  // Day chart
-  if (dayChartInst) dayChartInst.destroy();
-  dayChartInst = new Chart(document.getElementById('dayChart'), {
-    type: 'bar',
-    data: {
-      labels: sortedDays.map(d => d.slice(0,5)),
-      datasets: [{
-        label: 'Шаги',
-        data: sortedDays.map(d => daySteps[d]),
-        backgroundColor: '#2a5cff',
-        borderRadius: 4,
-        borderSkipped: false
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        y: { ticks: { callback: v => fmt(v), font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.05)' } },
-        x: { ticks: { maxRotation: 45, autoSkip: true, font: { size: 11 } }, grid: { display: false } }
-      }
-    }
-  });
 
   // Avg per person chart
   const avgData = sortedTeams.map(([team, steps]) => ({
@@ -460,31 +421,6 @@ function renderDashboard(rows) {
         y: { ticks: { callback: v => fmt(v), font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.05)' } },
         x: { ticks: { autoSkip: false, maxRotation: 30, font: { size: 11 } }, grid: { display: false } }
       }
-    }
-  });
-
-  // Members chart
-  if (membersChartInst) membersChartInst.destroy();
-  membersChartInst = new Chart(document.getElementById('membersChart'), {
-    type: 'doughnut',
-    data: {
-      labels: sortedTeams.map(([t]) => t),
-      datasets: [{
-        data: sortedTeams.map(([t]) => teamMembers[t]?.size || 0),
-        backgroundColor: sortedTeams.map((_, i) => COLORS[i % COLORS.length]),
-        borderWidth: 2,
-        borderColor: '#ffffff'
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: 'right',
-          labels: { font: { size: 11 }, boxWidth: 10, padding: 8 }
-        }
-      },
-      cutout: '60%'
     }
   });
 
