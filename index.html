@@ -241,13 +241,30 @@
         </div>
       </div>
     </div>
+    <div style="margin-bottom:1.25rem;">
+      <div class="card">
+        <div class="card-title">Кол-во шагов по дням — по командам</div>
+        <div id="stackedLegend" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px;font-size:12px;color:var(--text2);"></div>
+        <div class="chart-wrap" style="height:300px;">
+          <canvas id="stackedChart" role="img" aria-label="Шаги по дням по командам">Столбчатый график шагов по дням в разбивке по командам.</canvas>
+        </div>
+      </div>
+    </div>
+    <div style="margin-bottom:1.25rem;">
+      <div class="card">
+        <div class="card-title">Все участники — индивидуальные результаты</div>
+        <div style="overflow-x:auto;">
+          <table class="player-table" id="all-players" style="width:100%;"></table>
+        </div>
+      </div>
+    </div>
   </div>
 </main>
 
 <script>
 const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRdD9D_PSa5KiijCAGOzzMsx_VdWWfRsiVma_7arW-Hlv6vFtgi1pGdCZJ6u7i8f5uTxmcYhxs-VrMq/pub?output=csv';
 const COLORS = ['#2a5cff','#1a9e6e','#e8a020','#e05050','#8b5cf6','#ec4899','#0ea5e9','#f97316'];
-let dayChartInst = null, avgChartInst = null, membersChartInst = null;
+let dayChartInst = null, avgChartInst = null, membersChartInst = null, stackedChartInst = null;
 let autoRefreshTimer = null;
 
 function fmt(n) {
@@ -322,8 +339,27 @@ function renderDashboard(rows) {
   // Aggregations
   const totalSteps = rows.reduce((s, r) => s + r.steps, 0);
   const participants = new Set(rows.map(r => r.name)).size;
-  const days = new Set(rows.map(r => r.date)).size;
+  const allDates = [...new Set(rows.map(r => r.date))].sort((a, b) => {
+    const pa = a.split(".").reverse().join("-");
+    const pb = b.split(".").reverse().join("-");
+    return pa < pb ? -1 : 1;
+  });
+  const firstDate = allDates[0];
+  const days = allDates.length;
   const avgPerPerson = participants ? Math.round(totalSteps / participants) : 0;
+
+  function parseDateDMY(s) {
+    const [d, m, y] = s.split(".");
+    return new Date(+y, +m - 1, +d);
+  }
+  const firstDateObj = parseDateDMY(firstDate);
+  const today = new Date(); today.setHours(0,0,0,0);
+  firstDateObj.setHours(0,0,0,0);
+  const challengeDay = Math.max(1, Math.floor((today - firstDateObj) / 86400000) + 1);
+  const latestDate = allDates[allDates.length - 1];
+  const todayRows = rows.filter(r => r.date === latestDate);
+  const todaySteps = todayRows.reduce((s, r) => s + r.steps, 0);
+  const todayActive = new Set(todayRows.map(r => r.name)).size;
 
   // Team totals
   const teamSteps = {}, teamMembers = {};
@@ -351,10 +387,10 @@ function renderDashboard(rows) {
 
   // Metrics
   document.getElementById('metrics').innerHTML = `
-    <div class="metric"><div class="metric-label">Всего шагов</div><div class="metric-value">${fmt(totalSteps)}</div><div class="metric-sub">по всем командам</div></div>
-    <div class="metric"><div class="metric-label">Участников</div><div class="metric-value">${participants}</div><div class="metric-sub">в ${sortedTeams.length} командах</div></div>
-    <div class="metric"><div class="metric-label">Дней</div><div class="metric-value">${days}</div><div class="metric-sub">с результатами</div></div>
-    <div class="metric"><div class="metric-label">Среднее</div><div class="metric-value">${fmt(avgPerPerson)}</div><div class="metric-sub">шагов на участника</div></div>
+    <div class="metric" style="border-left:3px solid #2a5cff;"><div class="metric-label">День челленджа</div><div class="metric-value" style="color:#2a5cff;">${challengeDay}</div><div class="metric-sub">начало: ${firstDate}</div></div>
+    <div class="metric"><div class="metric-label">Шагов за ${latestDate}</div><div class="metric-value">${fmt(todaySteps)}</div><div class="metric-sub">последний день с данными</div></div>
+    <div class="metric"><div class="metric-label">Активных ${latestDate}</div><div class="metric-value">${todayActive}</div><div class="metric-sub">из ${participants} участников</div></div>
+    <div class="metric"><div class="metric-label">Всего шагов</div><div class="metric-value">${fmt(totalSteps)}</div><div class="metric-sub">за весь челлендж</div></div>
   `;
 
   // Team bars
@@ -451,6 +487,44 @@ function renderDashboard(rows) {
       cutout: '60%'
     }
   });
+
+  // Stacked bar chart: steps per day per team
+  const teamNames = sortedTeams.map(([t]) => t);
+  const stackedDatasets = teamNames.map((team, i) => ({
+    label: team,
+    data: sortedDays.map(d => {
+      return rows.filter(r => r.date === d && r.team === team).reduce((s, r) => s + r.steps, 0);
+    }),
+    backgroundColor: COLORS[i % COLORS.length],
+    borderRadius: 2,
+    borderSkipped: false
+  }));
+  if (stackedChartInst) stackedChartInst.destroy();
+  stackedChartInst = new Chart(document.getElementById('stackedChart'), {
+    type: 'bar',
+    data: { labels: sortedDays.map(d => d.slice(0,5)), datasets: stackedDatasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { stacked: true, ticks: { maxRotation: 45, autoSkip: true, font: { size: 11 } }, grid: { display: false } },
+        y: { stacked: true, ticks: { callback: v => fmt(v), font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.05)' } }
+      }
+    }
+  });
+  document.getElementById('stackedLegend').innerHTML = teamNames.map((t, i) =>
+    `<span style="display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:2px;background:${COLORS[i%COLORS.length]};flex-shrink:0;"></span>${t}</span>`
+  ).join('');
+
+  // All players table sorted by total steps desc
+  const allPlayersSorted = Object.entries(playerSteps).sort((a, b) => b[1] - a[1]);
+  const playerTeam = {};
+  rows.forEach(r => { playerTeam[r.name] = r.team; });
+  document.getElementById('all-players').innerHTML =
+    '<thead><tr><th>#</th><th>Участник</th><th>Команда</th><th style="text-align:right;">Шаги</th></tr></thead><tbody>' +
+    allPlayersSorted.map(([name, steps], i) =>
+      `<tr><td style="color:var(--text3);font-size:11px;font-weight:700;">${i+1}</td><td>${name}</td><td style="color:var(--text2);">${playerTeam[name]||''}</td><td style="text-align:right;font-weight:600;">${fmt(steps)}</td></tr>`
+    ).join('') + '</tbody>';
 
   document.getElementById('dashboard').style.display = 'block';
 }
