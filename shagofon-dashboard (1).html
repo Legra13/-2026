@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Шагофон 2026</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg: #f5f4f0;
+    --surface: #ffffff;
+    --surface2: #efefeb;
+    --text: #1a1a18;
+    --text2: #6b6b65;
+    --text3: #9b9b94;
+    --border: rgba(0,0,0,0.08);
+    --accent: #2a5cff;
+    --gold: #e8a020;
+    --green: #1a9e6e;
+    --radius: 14px;
+    --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 60px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .logo {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .logo-icon {
+    width: 28px; height: 28px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 14px;
+  }
+  .status {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--text3);
+  }
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #ccc;
+    transition: background 0.3s;
+  }
+  .status-dot.live { background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,0.2); }
+  .status-dot.error { background: #ef4444; }
+  main { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 1.75rem;
+  }
+  .metric {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    border: 1px solid var(--border);
+  }
+  .metric-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text3);
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .metric-value {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    color: var(--text);
+    line-height: 1;
+  }
+  .metric-sub {
+    font-size: 12px;
+    color: var(--text3);
+    margin-top: 4px;
+  }
+  .grid2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+  @media (max-width: 680px) { .grid2 { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+    overflow: hidden;
+  }
+  .card-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text3);
+    font-weight: 600;
+    margin-bottom: 1.25rem;
+  }
+  .team-row {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 10px;
+  }
+  .team-rank {
+    font-size: 12px; font-weight: 700;
+    color: var(--text3); width: 18px; flex-shrink: 0; text-align: center;
+  }
+  .team-name {
+    font-size: 13px; font-weight: 500;
+    width: 130px; flex-shrink: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    color: var(--text);
+  }
+  .bar-wrap { flex: 1; height: 18px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s cubic-bezier(.16,1,.3,1); }
+  .team-val { font-size: 12px; color: var(--text2); width: 72px; text-align: right; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+  .player-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .player-table tr { border-bottom: 1px solid var(--border); }
+  .player-table tr:last-child { border-bottom: none; }
+  .player-table td { padding: 8px 4px; color: var(--text); }
+  .player-table td:first-child { color: var(--text3); font-weight: 700; font-size: 11px; width: 24px; text-align: center; }
+  .player-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .chart-wrap { position: relative; width: 100%; }
+  .medal { color: var(--gold); }
+  .loading-state {
+    text-align: center; padding: 4rem 2rem;
+    color: var(--text3); font-size: 14px;
+  }
+  .loading-spinner {
+    width: 32px; height: 32px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 1rem;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-state {
+    background: #fff5f5; border: 1px solid #fecaca;
+    border-radius: var(--radius); padding: 1.5rem;
+    margin: 2rem 0; color: #991b1b; font-size: 14px;
+    line-height: 1.6;
+  }
+  .refresh-btn {
+    background: none; border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 5px 12px;
+    font-size: 12px; color: var(--text2); cursor: pointer;
+    transition: background 0.15s;
+  }
+  .refresh-btn:hover { background: var(--surface2); }
+  .empty-state {
+    text-align: center; padding: 3rem 1rem;
+    color: var(--text3); font-size: 14px;
+  }
+  .tag {
+    display: inline-block; padding: 2px 8px;
+    border-radius: 20px; font-size: 11px; font-weight: 600;
+    background: var(--surface2); color: var(--text2);
+  }
+  .updated-at { font-size: 11px; color: var(--text3); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">&#128694;</div>
+    Шагофон 2026
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span class="updated-at" id="updated-at"></span>
+    <button class="refresh-btn" onclick="loadData()">&#8635; Обновить</button>
+    <div class="status">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">Загрузка...</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div id="loading" class="loading-state">
+    <div class="loading-spinner"></div>
+    Загружаем данные из Google Sheets...
+  </div>
+  <div id="error" style="display:none"></div>
+  <div id="dashboard" style="display:none">
+    <div class="metrics" id="metrics"></div>
+    <div style="margin-bottom:1.25rem;">
+      <div class="card">
+        <div class="card-title">Рейтинг команд — суммарные шаги</div>
+        <div id="team-bars"></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title">Топ участников</div>
+        <table class="player-table" id="top-players"></table>
+      </div>
+      <div class="card">
+        <div class="card-title">Активность по дням</div>
+        <div class="chart-wrap" style="height:220px;">
+          <canvas id="dayChart" role="img" aria-label="Шаги по дням">Динамика шагов по дням.</canvas>
+        </div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title">Среднее шагов на участника</div>
+        <div class="chart-wrap" style="height:220px;">
+          <canvas id="avgChart" role="img" aria-label="Среднее по командам">Среднее шагов на участника по командам.</canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Участие команд — кол-во участников</div>
+        <div class="chart-wrap" style="height:220px;">
+          <canvas id="membersChart" role="img" aria-label="Участники по командам">Количество участников в каждой команде.</canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRdD9D_PSa5KiijCAGOzzMsx_VdWWfRsiVma_7arW-Hlv6vFtgi1pGdCZJ6u7i8f5uTxmcYhxs-VrMq/pub?output=csv';
+const COLORS = ['#2a5cff','#1a9e6e','#e8a020','#e05050','#8b5cf6','#ec4899','#0ea5e9','#f97316'];
+let dayChartInst = null, avgChartInst = null, membersChartInst = null;
+let autoRefreshTimer = null;
+
+function fmt(n) {
+  return Math.round(n).toLocaleString('ru-RU');
+}
+
+async function loadData() {
+  const dot = document.getElementById('status-dot');
+  const statusText = document.getElementById('status-text');
+  dot.className = 'status-dot';
+  statusText.textContent = 'Загрузка...';
+
+  const url = CSV_URL;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    const rows = parseCSV(text);
+    renderDashboard(rows);
+    dot.className = 'status-dot live';
+    statusText.textContent = 'Данные актуальны';
+    document.getElementById('updated-at').textContent =
+      'Обновлено: ' + new Date().toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'});
+  } catch(e) {
+    dot.className = 'status-dot error';
+    statusText.textContent = 'Ошибка загрузки';
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error').style.display = 'block';
+    document.getElementById('error').innerHTML = `
+      <div class="error-state">
+        <strong>Не удалось загрузить данные</strong><br><br>
+        Убедитесь, что таблица опубликована:<br>
+        Google Sheets → Файл → Опубликовать в интернете → CSV → Опубликовать<br><br>
+        <small style="color:#777">Техническая информация: ${e.message}</small>
+      </div>`;
+  }
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].match(/(".*?"|[^,]+)(?=,|$)/g) || [];
+    const clean = cols.map(c => c.replace(/^"|"$/g, '').trim());
+    if (clean.length >= 4 && clean[0] && clean[1] && clean[2] && clean[3]) {
+      const name = clean[0];
+      const team = clean[1];
+      const date = clean[2];
+      const steps = parseInt(clean[3].replace(/\s/g, '').replace(/\u00a0/g, ''));
+      if (name && team && date && !isNaN(steps) && steps > 0) {
+        rows.push({ name, team, date, steps });
+      }
+    }
+  }
+  return rows;
+}
+
+function renderDashboard(rows) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('error').style.display = 'none';
+
+  if (rows.length === 0) {
+    document.getElementById('dashboard').style.display = 'block';
+    document.getElementById('metrics').innerHTML = '';
+    document.getElementById('team-bars').innerHTML =
+      '<div class="empty-state">В таблице пока нет данных.<br>Добавьте первые записи в Google Sheets.</div>';
+    document.getElementById('top-players').innerHTML = '';
+    return;
+  }
+
+  // Aggregations
+  const totalSteps = rows.reduce((s, r) => s + r.steps, 0);
+  const participants = new Set(rows.map(r => r.name)).size;
+  const days = new Set(rows.map(r => r.date)).size;
+  const avgPerPerson = participants ? Math.round(totalSteps / participants) : 0;
+
+  // Team totals
+  const teamSteps = {}, teamMembers = {};
+  rows.forEach(r => {
+    teamSteps[r.team] = (teamSteps[r.team] || 0) + r.steps;
+    if (!teamMembers[r.team]) teamMembers[r.team] = new Set();
+    teamMembers[r.team].add(r.name);
+  });
+  const sortedTeams = Object.entries(teamSteps).sort((a, b) => b[1] - a[1]);
+  const maxTeamSteps = sortedTeams[0]?.[1] || 1;
+
+  // Player totals
+  const playerSteps = {};
+  rows.forEach(r => { playerSteps[r.name] = (playerSteps[r.name] || 0) + r.steps; });
+  const topPlayers = Object.entries(playerSteps).sort((a, b) => b[1] - a[1]).slice(0, 10);
+
+  // Day totals
+  const daySteps = {};
+  rows.forEach(r => { daySteps[r.date] = (daySteps[r.date] || 0) + r.steps; });
+  const sortedDays = Object.keys(daySteps).sort((a, b) => {
+    const pa = a.split('.').reverse().join('-');
+    const pb = b.split('.').reverse().join('-');
+    return pa < pb ? -1 : 1;
+  });
+
+  // Metrics
+  document.getElementById('metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">Всего шагов</div><div class="metric-value">${fmt(totalSteps)}</div><div class="metric-sub">по всем командам</div></div>
+    <div class="metric"><div class="metric-label">Участников</div><div class="metric-value">${participants}</div><div class="metric-sub">в ${sortedTeams.length} командах</div></div>
+    <div class="metric"><div class="metric-label">Дней</div><div class="metric-value">${days}</div><div class="metric-sub">с результатами</div></div>
+    <div class="metric"><div class="metric-label">Среднее</div><div class="metric-value">${fmt(avgPerPerson)}</div><div class="metric-sub">шагов на участника</div></div>
+  `;
+
+  // Team bars
+  const medals = ['🥇','🥈','🥉'];
+  document.getElementById('team-bars').innerHTML = sortedTeams.map(([team, steps], i) => `
+    <div class="team-row">
+      <div class="team-rank">${medals[i] || (i+1)}</div>
+      <div class="team-name">${team}</div>
+      <div class="bar-wrap"><div class="bar-fill" style="width:${Math.round(steps/maxTeamSteps*100)}%;background:${COLORS[i%COLORS.length]};"></div></div>
+      <div class="team-val">${fmt(steps)}</div>
+    </div>`).join('');
+
+  // Top players
+  document.getElementById('top-players').innerHTML = topPlayers.map(([name, steps], i) => `
+    <tr>
+      <td>${medals[i] || (i+1)}</td>
+      <td>${name}</td>
+      <td>${fmt(steps)}</td>
+    </tr>`).join('');
+
+  // Day chart
+  if (dayChartInst) dayChartInst.destroy();
+  dayChartInst = new Chart(document.getElementById('dayChart'), {
+    type: 'bar',
+    data: {
+      labels: sortedDays.map(d => d.slice(0,5)),
+      datasets: [{
+        label: 'Шаги',
+        data: sortedDays.map(d => daySteps[d]),
+        backgroundColor: '#2a5cff',
+        borderRadius: 4,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { ticks: { callback: v => fmt(v), font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.05)' } },
+        x: { ticks: { maxRotation: 45, autoSkip: true, font: { size: 11 } }, grid: { display: false } }
+      }
+    }
+  });
+
+  // Avg per person chart
+  const avgData = sortedTeams.map(([team, steps]) => ({
+    team,
+    avg: teamMembers[team] ? Math.round(steps / teamMembers[team].size) : 0
+  }));
+  if (avgChartInst) avgChartInst.destroy();
+  avgChartInst = new Chart(document.getElementById('avgChart'), {
+    type: 'bar',
+    data: {
+      labels: avgData.map(d => d.team),
+      datasets: [{
+        label: 'Среднее',
+        data: avgData.map(d => d.avg),
+        backgroundColor: avgData.map((_, i) => COLORS[i % COLORS.length]),
+        borderRadius: 4,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { ticks: { callback: v => fmt(v), font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.05)' } },
+        x: { ticks: { autoSkip: false, maxRotation: 30, font: { size: 11 } }, grid: { display: false } }
+      }
+    }
+  });
+
+  // Members chart
+  if (membersChartInst) membersChartInst.destroy();
+  membersChartInst = new Chart(document.getElementById('membersChart'), {
+    type: 'doughnut',
+    data: {
+      labels: sortedTeams.map(([t]) => t),
+      datasets: [{
+        data: sortedTeams.map(([t]) => teamMembers[t]?.size || 0),
+        backgroundColor: sortedTeams.map((_, i) => COLORS[i % COLORS.length]),
+        borderWidth: 2,
+        borderColor: '#ffffff'
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: { font: { size: 11 }, boxWidth: 10, padding: 8 }
+        }
+      },
+      cutout: '60%'
+    }
+  });
+
+  document.getElementById('dashboard').style.display = 'block';
+}
+
+// Auto-refresh every 60 seconds
+function startAutoRefresh() {
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+  autoRefreshTimer = setInterval(loadData, 60000);
+}
+
+loadData();
+startAutoRefresh();
+</script>
+</body>
+</html>
